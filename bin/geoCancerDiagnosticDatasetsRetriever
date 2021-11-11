@@ -9,7 +9,7 @@
 # geoCancerDiagnosticDatasetsRetriever, version 1.0                                                                              #
 # -----------------------------------------------------                                                                          #
 #                                                                                                                                #
-# Last Update: 03/11/21                                                                                                          #
+# Last Update: 11/11/21                                                                                                          #
 #                                                                                                                                #
 # Author:    Abbas Alameer <abbas.alameer@ku.edu.kw>,                                                                            #
 #          Bioinformatics and Molecular Modelling Group,                                                                         #
@@ -69,10 +69,6 @@ my $diag_flag;
 my $wget_flag;
 my $human_flag;
 my $i                     = 0;
-my $keyword_count         = 0;
-my $more_count            = 0;
-my $ftp_keyword_count     = 0;
-my $extra_count           = 0;
 my $filter2_count         = 0;
 my %simple_hash           = ();
 my ($cwd, $prog_path);
@@ -98,7 +94,7 @@ input_parameters_check();
 #format the input file.
 format_input($input_file, $formatted_input_file);
 
-#run main processing events of geo_CPDR and output results.
+#run main processing events of geo_CDDR and output results.
 main($formatted_input_file, $output_file);
 
 
@@ -118,11 +114,11 @@ sub initial_checks {
 	
 	#check 1 - check that the script is installed on the system.
 	#Prompt user to install it, if not found in the $PATH.
-	my $which_path	  = qx{which geoCancerDiagnosticDatasetsRetriever};
-	$general_dir	  = "~/geoCancerDiagnosticDatasetsRetriever_files";
-	$temp_subdir       = "~/geoCancerDiagnosticDatasetsRetriever_files/temp/";
-	$data_subdir	  = "~/geoCancerDiagnosticDatasetsRetriever_files/data/";
-	$results_subdir = "~/geoCancerDiagnosticDatasetsRetriever_files/results/";
+	my $which_path	  	= qx{which geoCancerDiagnosticDatasetsRetriever};
+	$general_dir	  	= "~/geoCancerDiagnosticDatasetsRetriever_files";
+	$temp_subdir       	= "~/geoCancerDiagnosticDatasetsRetriever_files/temp/";
+	$data_subdir	  	= "~/geoCancerDiagnosticDatasetsRetriever_files/data/";
+	$results_subdir 	= "~/geoCancerDiagnosticDatasetsRetriever_files/results/";
 	
 	#Commented out for now (Nov 2021)
 	#unless ($which_path) {
@@ -180,6 +176,16 @@ sub initial_checks {
 				
 			print color ("red"), "curl binary was not found: install it on your system.\n", color("reset"); 
 		}	
+	}
+	#check 4 - download healthyControlsPresentInputParams.r if not present
+	my $RscriptFile1 = 'healthyControlsPresentInputParams.r';
+	my $RscriptFile2 = "./" . "healthyControlsPresentInputParams.r";
+	
+	unless (-e $RscriptFile2) {
+
+			#The script downloads the R script if it does not exist in the current folder
+			print color ("red"), "The \"$RscriptFile1\" file is missing and will be downloaded...\n\n", color("reset");
+			system ("curl -O -C - https://raw.githubusercontent.com/davidechicco/healthyControlsPresenceChecker_repo/main/healthyControlsPresentInputParams.r");
 	}
 	
 }
@@ -452,8 +458,7 @@ sub main {
     
 	while ($line = <FH>) {
 			
-		if ($line =~ m/.*(diagnosis|diagnostic|diagnostically|diagnosticator|diagnosticate|diagnosticating|diagnose|diagnoses|diagnosed|diagnosing|healthy|healthy\scontrols?|controls?).*/ig) { 
-		#if ($line =~ m/.*(progno.+\s?|surviv.+\s?).*/ig) {
+		if ($line =~ m/.*(diagnosis|diagnostic|diagnostically|diagnosticator|diagnosticate|diagnosticating|diagnose|diagnoses|diagnosed|diagnosing|healthy|healthy\scontrol|healthy\scontrols|control|controls).*/ig) {
 			
 			$flag = 1; 
 			$diag_flag = 1; 
@@ -534,25 +539,18 @@ sub main {
 					print FH2 "Diagnostic Text filter: <Diagnostic keywords found>\n";
 					
 					$diag_flag = 0; 
-					$human_flag = 0; 
-					$keyword_count++; 
+					$human_flag = 0;
 					
-					my $unzip_file = download_soft_file($link, $gse_code); #download soft file and store filename in variable $unzip_file.
-					my %local_hash = prognostic_signature_finder($unzip_file);
+					my %local_hash = diagnostic_signature_finder($gse_code);
 					
-					if (exists ($local_hash{$unzip_file})) { print FH2 "$local_hash{$unzip_file}\n"; }
+					if (exists ($local_hash{$gse_code})) { print FH2 "$local_hash{$gse_code}\n"; }
 				}
 				
 				elsif ($wget_flag && $human_flag) {
-					
-					$more_count++; 
-					
-					my %local_hash;
-					($ftp_keyword_count, %local_hash) = soft_file_abstract_check($link, $gse_code);
-					
+
+					my (%local_hash) =soft_file_abstract_check($link, $gse_code);
 					my $current_file = $gse_code . "_family.soft";
-					if (exists ($local_hash{$current_file})) { print FH2 "$local_hash{$current_file}\n"; }
-					if ($ftp_keyword_count) { $keyword_count++; $extra_count++; } #update keyword count, if a keyword was found in a soft file.
+					if (exists ($local_hash{$gse_code})) { print FH2 "$local_hash{$gse_code}\n"; }
 					
 					$wget_flag = 0;
 					$human_flag = 0;
@@ -599,14 +597,16 @@ sub main {
 	print color ("green"), "Check results file: $general_dir\/results\/", color("reset");
 	print color ("blue"), "$main_output_file_timestamped\n", color("reset");
 	print color ("green"), "Total diagnostic datasets found: $filter2_count\n";
-	print FH2 "Total prognostic datasets found:\t$filter2_count\n";
+	print FH2 "Total diagnostic datasets found:\t$filter2_count\n";
 
 	foreach my $i (0 .. $#GEO_list) {
 	
-		my ($GSE_dataset) = split(/_/, "$GEO_list[$i]");
+		#my ($GSE_dataset) = split(/_/, "$GEO_list[$i]");
 		my $j = $i + 1;
-		print color ("green"), "[$j] $GSE_dataset\n";
-		print FH2 "[$j] $GSE_dataset\n";
+		#print color ("green"), "[$j] $GSE_dataset\n";
+		print color ("green"), "[$j] $GEO_list[$i]\n";
+		#print FH2 "[$j] $GSE_dataset\n";
+		print FH2 "[$j] $GEO_list[$i]\n";
 	} 
 
 	close(FH);
@@ -683,7 +683,7 @@ sub download_soft_file {
 #This subroutine checks the GSE entries' full abstract for prognostic keywords. If the input 
 #file's abstract is incomplete, "more..." is found. It calls the download_soft_file() to download 
 #the .soft file and then checks for prognostic keywords. If keywords are detected, it calls the 
-#prognostic_signature_finder() to check for prognostic signatures in the same .soft file
+#diagnostic_signature_finder() to check for diagnostic signatures for a flagged GSE dataset.
 sub soft_file_abstract_check {
 	
 	my $wget_file     = $_[0];
@@ -691,13 +691,13 @@ sub soft_file_abstract_check {
 	my $wget_counter  = 0;
 	my $unzip_file    = download_soft_file($wget_file, $gse_id); #download soft file and store filename in variable $unzip_file.
 	
-	#open soft file and search for prognostic keywords in all GSE entry abstracts.
+	#open soft file and search for diagnostic keywords in all GSE entry abstracts.
 	open (SOFT, "$run_dir/$unzip_file") or die "Cannot open file: $unzip_file $!\n";
 
 	while (<SOFT>) {
 		
-		if ($_=~ m/^!Series_summary.+(diagnosis|diagnostic|diagnostically|diagnosticator|diagnosticate|diagnosticating|diagnose|diagnoses|diagnosed|diagnosing|healthy|healthy\scontrols?|controls?).+/ig) {
-		#if ($line =~ m/^!Series_summary.+(progno.+\s?|surviv.+\s?).*/ig) {
+		if ($_=~ m/^!Series_summary.+(diagnosis|diagnostic|diagnostically|diagnosticator|diagnosticate|diagnosticating|diagnose|diagnoses|diagnosed|diagnosing|healthy|healthy\scontrol|healthy\scontrols|control|controls).*/ig) {
+
 			$wget_counter++;	
 		}
 		
@@ -710,11 +710,9 @@ sub soft_file_abstract_check {
 		
 		print color ("yellow"), "Diagnostic Text filter: <Diagnostic keywords found>\n", color("reset");
 		print FH2 "Diagnostic Text filter: <Diagnostic keywords found>\n";
-		my %local_hash = prognostic_signature_finder($unzip_file);
-		
-		#returns count (i.e. 1 => minimum no. of occurrence of keyword), which will be added to count value from main script.
-		#and returns a copy of the result of prognostic_signature_finder().
-		return (1, %local_hash);
+		my %local_hash = diagnostic_signature_finder($gse_id);
+							
+		return (%local_hash);	
 		
 	} else {
 		
@@ -724,86 +722,86 @@ sub soft_file_abstract_check {
 	}
 }
 ############################ SUBROUTINE 11 #######################################################
-#This subroutine uses regular expression analysis to detect prognostic signature patterns. 
-#The regexes are based on over 50 parsed signatures used for different cancer types.
-sub prognostic_signature_finder {
+#This subroutine detects diagnostic signature patterns. 
+# The following code was kindly provided by Davide Chicco.
+# See: https://github.com/davidechicco/healthyControlsPresenceChecker_repo
+# It was adapted in this subroutine with minor modifications.
+sub diagnostic_signature_finder {
 
-	my $soft_file             = $_[0];
-	my %hash_signature        = ();
-	my $soft_line             = "";
-	my $regex_tail            = '(:|=)\s*(alive.*|no\sdeath|dea(d|th.*)|deceased|NED|DOD|DOC|0\s|1\s|no|yes|.*patient|died.*|alive|surviv(al|ed)|living|long|short|Y|N|NED|DOD|AWD|Exitus)';
-	my $regex_keyword_type_A  = '(.*stat?us.*|.*(dea(d|th)|.*alive).*|.*\srecur\s.*|.*Die.*)' . $regex_tail;
-	my $regex_keyword_type_B  = '(dss.?event\s?\(.+\)|dfs.*\w+|drfs.*|e\.dmfs.*|e\.rfs.*|e?\.?os.*)' . $regex_tail;
-	my $regex_keyword_type_C  = '((Overall)?\s?survival.*|(overall)?.?event.*|outcome.*|prognosis.*|comort.*|evolution.*)' . $regex_tail;
-	my $regex_keyword_type_Ca = '(Overall)?\s?survival\s.*(:|=)\s*(\d*)';
-	my $outcome_1             = "Prognostic Signature filter: <Prognostic signature found>\n";
-	my $outcome_2             = "Prognostic Signature filter: <No data found>\n";
-	my $i                     = 0;
+	my $GEOcode					= $_[0];
+	my $i						= 0;
+	my %hash_signature			= ();
+
+	#We need a random number for the temporary file name
+	srand(42);
+	my $randomNumber = int rand(1000);
+
+	print color ("green"), "> > > lynx phase started\n", color("reset");
+
+	#lynx part
+	my $lynxOutputFile="temp_lynx_output_${GEOcode}_rand${randomNumber}.txt";
+	print color ("green"), "Created file $lynxOutputFile\n", color("reset");
+
+	my $GEOurl = "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=${GEOcode}";
+	print color ("green"), "Executing lynx --dump $GEOurl > $lynxOutputFile\n", color("reset");
+	system("lynx --dump $GEOurl > $lynxOutputFile");
+
+	my $output_lynx = `grep "healthy control" $lynxOutputFile`;
+	my $result_lynx_search = "";
 	
-	#open SOFT file and read its contents
-	open (KEY, "$run_dir/$soft_file") or die "Cannot open $soft_file: $!";
-	
-	while ($soft_line = <KEY>) {
-	
-		#regexes are evaluated according to their predominance from A - C
-		if ($soft_line =~ /^!Sample_characteristics_ch1 = $regex_keyword_type_A/ig) { 
+	if ($output_lynx eq "") {
 		
-			print color ("yellow"), "$outcome_1", color("reset"); 
-			print color ("green"), "$soft_line", color("reset");
-			$hash_signature{"$soft_file"} = "$outcome_1";
-			$i++; 
-			last;
-		} 
-				
-		elsif ($soft_line =~ /^!Sample_characteristics_ch1 = $regex_keyword_type_B/ig) { 
-			
-			print color ("yellow"), "$outcome_1", color("reset"); 
-			print color ("green"), "$soft_line", color("reset");
-			$hash_signature{"$soft_file"} = "$outcome_1";
-			$i++;
-			last;
-		}
-				
-		elsif ($soft_line =~ /^!Sample_characteristics_ch1 = $regex_keyword_type_C/ig) { 
-			
-			print color ("yellow"), "$outcome_1", color("reset"); 
-			print color ("green"), "$soft_line", color("reset"); 
-			$hash_signature{"$soft_file"} = "$outcome_1";
-			$i++;
-			last;
-		}
-		
-		elsif ($soft_line =~ /^!Sample_characteristics_ch1 = $regex_keyword_type_Ca/ig) { 
-			
-			print color ("yellow"), "$outcome_1", color("reset");  
-			print color ("green"), "$soft_line", color("reset");
-			$hash_signature{"$soft_file"} = "$outcome_1";
-			$i++; 
-			last;
-		}
-		
+        $result_lynx_search = "FALSE";
+	} else {
+        
+        $result_lynx_search = "TRUE";
+		#store current dataset in an array
+		push (@GEO_list, "$GEOcode");
+		$hash_signature{"$GEOcode"} = "Lynx: " . "$result_lynx_search";
+		$i++;
 	}
 
-	#Alert user if no prognostic signature was found in the current GSE .soft file
-	unless ($i) { 
-		
-		print color ("yellow"), "$outcome_2", color("reset");
-		$hash_signature{"$soft_file"} = "$outcome_2"; 
-		
-	}
-	
-	else {
+	print color ("yellow"), "Outcome of healthy controls search in the file downloaded by lynx for $GEOcode: $result_lynx_search \n", color("reset");
+	#Remove the temporary file created earlier
+	system("rm $lynxOutputFile;");
+	print color ("green"), "Removed file $lynxOutputFile\n", color("reset");
+	print color ("green"), "< < <  lynx phase finished\n\n\n", color("reset");
+	print color ("green"), "> > > healthyControlsPresence.r phase started\n", color("reset");
+
+
+	if($result_lynx_search eq "FALSE"){
+
+		my $rScriptOutputFile="temp_R_output_${GEOcode}_rand${randomNumber}.txt";
+		print color ("green"), "Created file $rScriptOutputFile\n", color("reset");
+		#Call to the R script that checks the presence of healthy controls and prints its output in the $rScriptOutputFile
+		system("Rscript healthyControlsPresentInputParams.r $GEOcode TRUE > $rScriptOutputFile");
+
+		#Call to awk in bash to read the last word of the last line of the temporary file, that can be TRUE or FALSE
+		my $outcome_rscript = `awk 'END {print \$NF}' $rScriptOutputFile`;
+		$outcome_rscript =~ s/\n//;
+    
+		if ($outcome_rscript eq "TRUE") {
 		
 			#store current dataset in an array
-			push (@GEO_list, "$soft_file");
+			push (@GEO_list, "$GEOcode");
+			$hash_signature{"$GEOcode"} = "Rscript: " . "TRUE";
+			$i++;
+		}
+
+		#Print the final outcome: TRUE if healthy controls were found, FALSE otherwise.
+		print color ("yellow"), "Outcome of healthyControlsPresent.r for $GEOcode: $outcome_rscript\n", color("reset");
+
+		#Remove the temporary file created earlier
+		system("rm $rScriptOutputFile;");
+		print color ("green"), "Removed file $rScriptOutputFile\n", color("reset");
+		print color ("green"), "< < < healthyControlsPresence.r phase finished\n\n\n", color("reset");
 	}
-	
+
 	#count total flagged datasets found by the Prognostic Signature filter
 	$filter2_count += $i;
 	
 	return %hash_signature;
-	
-	close (KEY);
+
 }
 
 exit 0;
