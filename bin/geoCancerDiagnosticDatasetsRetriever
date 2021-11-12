@@ -812,7 +812,6 @@ sub diagnostic_signature_finder {
 	$filter2_count += $i;
 	
 	return ($signature);
-
 }
 
 exit 0;
