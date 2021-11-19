@@ -78,7 +78,7 @@ my $human_flag;
 my $i                     = 0;
 my $filter2_count         = 0;
 my %simple_hash           = ();
-my ($cwd, $prog_path);
+my $prog_path;
 my $current_date_time     = date_time();
 my $run_dir;
 my @GEO_list              = ();
