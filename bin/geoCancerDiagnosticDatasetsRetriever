@@ -9,32 +9,39 @@
 # geoCancerDiagnosticDatasetsRetriever, version 1.0                                                                              #
 # -----------------------------------------------------                                                                          #
 #                                                                                                                                #
-# Last Update: 12/11/21                                                                                                          #
+# Last Update: 19/11/21                                                                                                          #
 #                                                                                                                                #
-# Author:    Abbas Alameer <abbas.alameer@ku.edu.kw>,                                                                            #
-#          Bioinformatics and Molecular Modelling Group,                                                                         #
+# Authors:   Abbas Alameer <abbas.alameer@ku.edu.kw>,                                                                            #
 #                      Kuwait University                                                                                         #
 #                                                                                                                                #
-# Please email queries, suggestions, and possible bug information to the above author.                                           #
+#            Davide Chicco, <davidechicco\@davidechicco.it>,                                                                     #
+#                         University of Toronto                                                                                  #
+#                                                                                                                                #
+# Please email queries, suggestions, and possible bug information to the above authors.                                          #
 #                                                                                                                                #
 # Brief Description:                                                                                                             #
 # ------------------                                                                                                             #
 #                                                                                                                                #
 # Gene Expression Omnibus (GEO) Cancer Diagnostic Datasets Retriever is a Bioinformatics tool for cancer diagnostic dataset      #
 # retrieval from the GEO database. It requires a GeoDatasets input file listing all GSE dataset entries for a specific cancer    #
-# (ex. Bladder cancer), obtained as a download from the GEO database. This Bioinformatics tool functions by applying two         #
-# heuristic filters to examine individual GSE dataset entries listed in a GEO DataSets input file. The Diagnostic text filter    #
-# flags for diagnostic keywords (ex. “diagnosis” or “health”) used by clinical science researchers and present in the            #
-# title/abstract entries or the "Overall design" section of a GSE dataset. If found, this tool retrieves those flagged datasets. # 
-# Next, the second filter (Diagnostic Signature filter) filters these datasets further by applying diagnostic signature pattern  #
-# matching (Perl regular expression signatures) to identify if the GSE dataset is a likely diagnostic dataset.                   #
+# (ex. Bladder cancer), obtained as a download from the GEO database. This Bioinformatics tool functions by applying keyword     #
+# filters to examine individual GSE dataset entries listed in a GEO DataSets input file. The first Diagnostic text filter flags  #
+# for diagnostic keywords (ex. “diagnosis” or “health”) used by clinical science researchers and present in the title/abstract   #
+# entries. Next, a flagged dataset is examined (by a second Diagnostic text filter) for diagnostic keywords, which may be        #
+# present in the "Overall design" section of a GSE dataset. If found, this tool outputs the GSE code of the likely diagnostic    #
+# dataset. If not found by the second filter, a more intensive filtering stage is performed. Here, this tool runs an R script    #
+# (healthyControlsPresentInputParams.r) whose function is to detect desired keywords in the .SOFT file of this dataset and       #
+# identify if it is a likely diagnostic dataset.                                                                                 #
 #                                                                                                                                #
 #                                                                                                                                #
 # The prerequisite for running this program in a UNIX or Linux environment is:                                                   #
 # ----------------------------------------------------------------------------                                                   #
 #                                                                                                                                #
-# 1. cURL: If using a Ubuntu-based system, the program will assist the user in installing curl, otherwise manual installation    #
-#          is required.                                                                                                          #
+# 1. cURL and Lynx: If using an Ubuntu-based system, the program will assist the user in installing curl & lynx, otherwise       #
+#                   manual installation is required.                                                                             #
+#                                                                                                                                #
+# 2. R programming language: >= v4 is required to be installed.                                                                  #
+#                                                                                                                                #
 #                                                                                                                                #
 # Program Usage:                                                                                                                 #
 # --------------                                                                                                                 #
@@ -157,15 +164,15 @@ sub initial_checks {
 		print color ("green"), "done\n", color("reset");
 	}
 	
-	#check 3 - check for the presence of curl binary in the $PATH. 
+	#check 3 - check for the presence of curl/lynx binaries in the $PATH. 
 	#if not found, install on an Ubuntu/Ubuntu-based systems. 
 	#if system is not Ubuntu, prompt user to install it manually.
-	my $check = qx{which curl};
+	my $check_curl = qx{which curl};
+	my $check_lynx = qx{which lynx};
+	#check if current system is Ubuntu/or Ubuntu-based
+	my $ubuntu = qx{uname -a};
 	
-	if (!$check) {
-			
-		#check if current system is Ubuntu/or Ubuntu-based
-		my $ubuntu = qx{uname -a};
+	if (!$check_curl) {
 			
 		if ($ubuntu=~ /.+ubuntu.+/ig) {
 			
@@ -176,9 +183,27 @@ sub initial_checks {
 			
 		else { 
 				
-			print color ("red"), "curl binary was not found: install it on your system.\n", color("reset"); 
-		}	
+			print color ("red"), "curl binary was not found: install it on your system.\n", color("reset");
+			exit; 
+		}
+	}	
+			
+	if (!$check_lynx) {
+			
+		if ($ubuntu=~ /.+ubuntu.+/ig) {
+			
+			print color ("red"), "lynx binary was not found: follow onscreen instructions/input your password for its installation...\n\n", color("reset");
+			system("sudo apt -y install lynx"); #install curl
+			print "done\n";	
+		} 
+			
+		else { 
+				
+			print color ("red"), "lynx binary was not found: install it on your system.\n", color("reset");
+			exit; 
+		}
 	}
+	
 	#check 4 - download healthyControlsPresentInputParams.r if not present
 	my $RscriptFile1 = 'healthyControlsPresentInputParams.r';
 	my $RscriptFile2 = "$prog_path/Rscript/healthyControlsPresentInputParams.r";
@@ -187,10 +212,8 @@ sub initial_checks {
 
 			#The script downloads the R script if it does not exist in the current folder
 			print color ("red"), "The \"$RscriptFile1\" file is missing and will be downloaded...\n\n", color("reset");
-			#system ("curl -O -C - https://raw.githubusercontent.com/davidechicco/healthyControlsPresenceChecker_repo/main/healthyControlsPresentInputParams.r");
 			system ("cd $prog_path/Rscript/ && { curl -O -C - https://raw.githubusercontent.com/davidechicco/healthyControlsPresenceChecker_repo/main/healthyControlsPresentInputParams.r ; }");
-	}
-	
+	}	
 }
 ############################ SUBROUTINE 2 #######################################################
 #get the current date and time.
@@ -221,8 +244,11 @@ sub start_up {
 #           GEO Cancer Diagnostic Datasets Retriever v1.0             #
 #           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~            #
 #                                                                     #
-#              Author: Abbas Alameer, Kuwait University               #
+#              Authors: Abbas Alameer, Kuwait University              #
 #                         abbas.alameer\@ku.edu.kw                     #
+#                                   &                                 #
+#                       Davide Chicco, University of Toronto          #
+#                         davidechicco\@davidechicco.it                #
 #                                                                     #
 #                                                                     #
 #                       Developed in November 2021                    #
@@ -538,8 +564,8 @@ sub main {
 					
 				if ($diag_flag && $human_flag) { 
 					
-					print color ("yellow"), "Diagnostic Text: <Diagnostic keywords found>\n", color("reset");
-					print FH2 "Diagnostic Text filter: <Diagnostic keywords found>\n";
+					print color ("yellow"), "Diagnostic Text filter 1: <Diagnostic keywords found>\n", color("reset");
+					print FH2 "Diagnostic Text filter 1: <Diagnostic keywords found>\n";
 					
 					my $local_sig;
 					($local_sig) = diagnostic_signature_finder($gse_code);
@@ -551,9 +577,10 @@ sub main {
 				}
 				
 				elsif ($wget_flag && $human_flag) {
+					
 					my $local_sig;
-					my $local_sig2;
-					($local_sig, $local_sig2)	= soft_file_abstract_check($link, $gse_code);
+					
+					($local_sig) = soft_file_abstract_check($link, $gse_code);
 					#my $current_file	= $gse_code . "_family.soft";
 					
 					if ($local_sig) { print FH2 "$local_sig\n"; }
@@ -561,7 +588,6 @@ sub main {
 					$wget_flag	= 0;
 					$human_flag = 0;
 				}
-				
 				next;
 			}
 				
@@ -683,9 +709,9 @@ sub download_soft_file {
 	return $dsf_unzip_file;
 }
 ############################ SUBROUTINE 10 #######################################################
-#This subroutine checks the GSE entries' full abstract for prognostic keywords. If the input 
+#This subroutine checks the GSE entries' full abstract for diagnostic keywords. If the input 
 #file's abstract is incomplete, "more..." is found. It calls the download_soft_file() to download 
-#the .soft file and then checks for prognostic keywords. If keywords are detected, it calls the 
+#the .soft file and then checks for diagnostic keywords. If keywords are detected, it calls the 
 #diagnostic_signature_finder() to check for diagnostic signatures for a flagged GSE dataset.
 sub soft_file_abstract_check {
 	
@@ -711,8 +737,8 @@ sub soft_file_abstract_check {
 	
 	if ($wget_counter) { 
 		
-		print color ("yellow"), "Diagnostic Text filter: <Diagnostic keywords found>\n", color("reset");
-		print FH2 "Diagnostic Text filter: <Diagnostic keywords found>\n";
+		print color ("yellow"), "Diagnostic Text filter 1: <Diagnostic keywords found>\n", color("reset");
+		print FH2 "Diagnostic Text filter 1: <Diagnostic keywords found>\n";
 		my $local_sig;
 		($local_sig) = diagnostic_signature_finder($gse_id);
 							
@@ -720,8 +746,8 @@ sub soft_file_abstract_check {
 		
 	} else {
 		
-		print color ("yellow"), "Diagnostic Text filter: <No diagnostic keywords found>\n", color("reset");
-		print FH2 "Diagnostic Text filter: <No diagnostic keywords found>\n";
+		print color ("yellow"), "Diagnostic Text filter 1: <No diagnostic keywords found>\n", color("reset");
+		print FH2 "Diagnostic Text filter 1: <No diagnostic keywords found>\n";
 		return 0;
 	}
 }
@@ -748,8 +774,8 @@ sub diagnostic_signature_finder {
 
 	my $GEOurl = "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=${GEOcode}";
 	print color ("green"), "Executing lynx --dump $GEOurl > $lynxOutputFile\n", color("reset");
+	#retrieve a GSE dataset's webpage and save in a HTML-free text-based file for further processing
 	system ("cd $prog_path/temp/ && { lynx --dump $GEOurl > $lynxOutputFile ; }");
-	#system("lynx --dump $GEOurl > $lynxOutputFile");
 
 	my $output_lynx = `grep "healthy control" $prog_path/temp/$lynxOutputFile`;
 	my $result_lynx_search = "";
@@ -757,20 +783,19 @@ sub diagnostic_signature_finder {
 	if ($output_lynx eq "") {
 		
         $result_lynx_search = "FALSE";
-        $signature = "Lynx: " . "$result_lynx_search";
+        $signature = "Diagnostic Text filter 2: " . "$result_lynx_search";
 	} else {
         
         $result_lynx_search = "TRUE";
 		#store current dataset in an array
 		push (@GEO_list, "$GEOcode");
-		$signature = "Lynx: " . "$result_lynx_search";
+		$signature = "Diagnostic Text filter 2: " . "$result_lynx_search";
 		$i++;
 	}
 
-	print color ("yellow"), "Outcome of healthy controls search in the file downloaded by lynx for $GEOcode: $result_lynx_search\n", color("reset");
+	print color ("yellow"), "Diagnostic Text filter 2: Outcome of healthy controls search for $GEOcode <$result_lynx_search>\n", color("reset");
 	#Remove the temporary file created earlier
 	system ("cd $prog_path/temp/ && { rm $lynxOutputFile ; }");
-	#system("rm $lynxOutputFile;");
 	print color ("green"), "Removed file $lynxOutputFile\n", color("reset");
 	print color ("green"), "< < <  lynx phase finished\n\n\n", color("reset");
 	print color ("green"), "> > > healthyControlsPresence.r phase started\n", color("reset");
@@ -781,7 +806,6 @@ sub diagnostic_signature_finder {
 		my $rScriptOutputFile="temp_R_output_${GEOcode}_rand${randomNumber}.txt";
 		print color ("green"), "Created file $rScriptOutputFile\n", color("reset");
 		#Call to the R script that checks the presence of healthy controls and prints its output in the $rScriptOutputFile
-		#system("Rscript healthyControlsPresentInputParams.r $GEOcode TRUE > $prog_path/temp/$rScriptOutputFile");
 		system ("cd $prog_path/Rscript/ && { Rscript healthyControlsPresentInputParams.r $GEOcode TRUE > $prog_path/temp/$rScriptOutputFile ; }");
 		#Call to awk in bash to read the last word of the last line of the temporary file, that can be TRUE or FALSE
 		my $outcome_rscript = `awk 'END {print \$NF}' $prog_path/temp/$rScriptOutputFile`;
@@ -791,24 +815,23 @@ sub diagnostic_signature_finder {
 		
 			#store current dataset in an array
 			push (@GEO_list, "$GEOcode");
-			$signature = "Rscript: " . "TRUE";
+			$signature = "Rscript filter: " . "TRUE";
 			$i++;
 		} else{
 			
-			$signature = "Rscript: " . "FALSE";
+			$signature = "Rscript filter: " . "FALSE";
 		}
 
 		#Print the final outcome: TRUE if healthy controls were found, FALSE otherwise.
-		print color ("yellow"), "Outcome of healthyControlsPresent.r for $GEOcode: $outcome_rscript\n", color("reset");
+		print color ("yellow"), "R script: Outcome of healthyControlsPresent.r for $GEOcode <$outcome_rscript>\n", color("reset");
 
 		#Remove the temporary file created earlier
 		system ("cd $prog_path/temp/ && { rm $rScriptOutputFile ; }");
-		#system("rm $rScriptOutputFile;");
 		print color ("green"), "Removed file $rScriptOutputFile\n", color("reset");
 		print color ("green"), "< < < healthyControlsPresence.r phase finished\n\n\n", color("reset");
 	}
 
-	#count total flagged datasets found by the Prognostic Signature filter
+	#count total diagnostic datasets found by diagnostic_signature_finder() filters
 	$filter2_count += $i;
 	
 	return ($signature);
