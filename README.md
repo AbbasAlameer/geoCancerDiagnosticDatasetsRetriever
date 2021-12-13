@@ -96,7 +96,7 @@ For specialized options, allowing more fine-grained user control, the following 
 
 -p <list of GPL platform codes>
 
-A list of GPL platform codes may be specified prior to execution, for expanding diagnostic datasets retrieval for a particular cancer (i.e. myelodysplastic syndrome). For example:
+A list of GPL platform codes may be specified prior to execution, for expanding diagnostic datasets retrieval for a particular cancer (such as myelodysplastic syndrome). For example:
 
 ```diff
 geoCancerDiagnosticDatasetsRetriever -d "myelodysplastic syndrome" -p "GPL570 GPL97 GPL96"
