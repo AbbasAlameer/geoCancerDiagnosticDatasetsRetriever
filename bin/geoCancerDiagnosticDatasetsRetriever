@@ -127,12 +127,7 @@ sub initial_checks {
 	#check 1 - check that the script is installed on the system.
 	#Prompt user to install it, if not found in the $PATH.
 	my $which_path	  	= qx{which geoCancerDiagnosticDatasetsRetriever};
-	#$general_dir	  	= "~/geoCancerDiagnosticDatasetsRetriever_files";
-	#$temp_subdir       	= "~/geoCancerDiagnosticDatasetsRetriever_files/temp/";
-	#$data_subdir	  	= "~/geoCancerDiagnosticDatasetsRetriever_files/data/";
-	#$results_subdir 	= "~/geoCancerDiagnosticDatasetsRetriever_files/results/";
 	$rscript_subdir 	= "/geoCancerDiagnosticDatasetsRetriever_files/Rscript";
-	
 	
 	unless ($which_path) {
 		
@@ -144,12 +139,10 @@ sub initial_checks {
 	else {
 		
 		my $mkdir_arg = "~" .  $rscript_subdir . "/";
-		#create main run directories - ignore if already present
+		#create main Rscript directory - ignore if already present
 		system("mkdir -p $mkdir_arg");
-	#	system("mkdir -p $general_dir $temp_subdir $data_subdir $results_subdir $rscript_subdir");
 		my $home_dir = File::HomeDir -> my_home;
 		my $rscript_path = $home_dir . $rscript_subdir;
-	#	$prog_path = $home_dir . "/geoCancerDiagnosticDatasetsRetriever_files";
 	} 
 
 	#check 2 - check if CPAN module (LWP::Protocol::https) is installed on current system 
