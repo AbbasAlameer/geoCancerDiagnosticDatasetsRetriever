@@ -134,14 +134,14 @@ sub initial_checks {
 	$rscript_subdir 	= "/geoCancerDiagnosticDatasetsRetriever_files/Rscript";
 	
 	
-	#unless ($which_path) {
+	unless ($which_path) {
 		
-	#	print color ("red"), "geoCancerDiagnosticDatasetsRetriever is not installed on this system...\n", color("reset");
-	#	print color ("red"), "See \"README\" for installation instructions.\n", color("reset");
-	#	exit;
-	#} 
+		print color ("red"), "geoCancerDiagnosticDatasetsRetriever is not installed on this system...\n", color("reset");
+		print color ("red"), "See \"README\" for installation instructions.\n", color("reset");
+		exit;
+	} 
 
-	#else {
+	else {
 		
 		my $mkdir_arg = "~" .  $rscript_subdir . "/";
 		#create main run directories - ignore if already present
@@ -150,7 +150,7 @@ sub initial_checks {
 		my $home_dir = File::HomeDir -> my_home;
 		my $rscript_path = $home_dir . $rscript_subdir;
 	#	$prog_path = $home_dir . "/geoCancerDiagnosticDatasetsRetriever_files";
-	#} 
+	} 
 
 	#check 2 - check if CPAN module (LWP::Protocol::https) is installed on current system 
 	#and install it if not found.
