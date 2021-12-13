@@ -128,6 +128,7 @@ sub initial_checks {
 	#Prompt user to install it, if not found in the $PATH.
 	my $which_path	  	= qx{which geoCancerDiagnosticDatasetsRetriever};
 	$rscript_subdir 	= "/geoCancerDiagnosticDatasetsRetriever_files/Rscript";
+	my $rscript_path;
 	
 	unless ($which_path) {
 		
@@ -142,7 +143,7 @@ sub initial_checks {
 		#create main Rscript directory - ignore if already present
 		system("mkdir -p $mkdir_arg");
 		my $home_dir = File::HomeDir -> my_home;
-		my $rscript_path = $home_dir . $rscript_subdir;
+		$rscript_path = $home_dir . $rscript_subdir;
 	} 
 
 	#check 2 - check if CPAN module (LWP::Protocol::https) is installed on current system 
